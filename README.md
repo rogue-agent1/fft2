@@ -1,14 +1,9 @@
-# fft2
+# fft-tool
 
-Fast Fourier Transform implementation
+Fast Fourier Transform tool. Zero-dependency, single-file Python CLI.
 
 ## Usage
 
 ```bash
 python3 fft2.py --help
 ```
-
-## Features
-
-- Zero dependencies (Python 3.8+)
-- Single file implementation
