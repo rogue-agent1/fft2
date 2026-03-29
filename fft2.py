@@ -1,51 +1,54 @@
-import argparse, cmath, math
+#!/usr/bin/env python3
+"""fft2 - Fast Fourier Transform with inverse and convolution."""
+import sys, cmath, math
 
 def fft(x):
     n = len(x)
-    if n <= 1: return x
+    if n <= 1:
+        return x
     even = fft(x[0::2])
     odd = fft(x[1::2])
-    t = [cmath.exp(-2j * cmath.pi * k / n) * odd[k] for k in range(n // 2)]
-    return [even[k] + t[k] for k in range(n // 2)] + [even[k] - t[k] for k in range(n // 2)]
+    T = [cmath.exp(-2j * cmath.pi * k / n) * odd[k] for k in range(n // 2)]
+    return [even[k] + T[k] for k in range(n // 2)] + [even[k] - T[k] for k in range(n // 2)]
 
-def ifft(x):
-    n = len(x)
-    conj = [v.conjugate() for v in x]
+def ifft(X):
+    n = len(X)
+    conj = [x.conjugate() for x in X]
     result = fft(conj)
-    return [v.conjugate() / n for v in result]
+    return [x.conjugate() / n for x in result]
 
-def main():
-    p = argparse.ArgumentParser(description="FFT tool")
-    p.add_argument("--demo", action="store_true")
-    p.add_argument("--values", nargs="+", type=float)
-    p.add_argument("--freq", type=float, help="Generate sine wave")
-    p.add_argument("-n", "--samples", type=int, default=64)
-    args = p.parse_args()
-    if args.freq:
-        signal = [math.sin(2 * math.pi * args.freq * t / args.samples) for t in range(args.samples)]
-        result = fft(signal)
-        print("Top frequencies:")
-        mags = [(abs(result[k]), k) for k in range(args.samples // 2)]
-        mags.sort(reverse=True)
-        for mag, k in mags[:5]:
-            if mag > 0.1: print(f"  bin {k}: magnitude={mag:.4f}")
-    elif args.values:
-        n = len(args.values)
-        pad = 1
-        while pad < n: pad *= 2
-        vals = args.values + [0] * (pad - n)
-        result = fft(vals)
-        for i, v in enumerate(result[:len(args.values)]):
-            print(f"  [{i}] {abs(v):.4f} ∠{cmath.phase(v)*180/cmath.pi:.1f}°")
-    elif args.demo:
-        signal = [math.sin(2*math.pi*3*t/64) + 0.5*math.sin(2*math.pi*7*t/64) for t in range(64)]
-        result = fft(signal)
-        print("Signal: sin(3x) + 0.5*sin(7x)")
-        mags = [(abs(result[k]), k) for k in range(32)]
-        mags.sort(reverse=True)
-        for mag, k in mags[:5]:
-            if mag > 0.5: print(f"  freq bin {k}: {mag:.2f}")
-    else: p.print_help()
+def convolve(a, b):
+    n = 1
+    while n < len(a) + len(b) - 1:
+        n <<= 1
+    fa = fft(a + [0] * (n - len(a)))
+    fb = fft(b + [0] * (n - len(b)))
+    fc = [fa[i] * fb[i] for i in range(n)]
+    result = ifft(fc)
+    return [round(x.real) for x in result[:len(a) + len(b) - 1]]
+
+def test():
+    # FFT of [1, 1, 1, 1] should be [4, 0, 0, 0]
+    X = fft([1, 1, 1, 1])
+    assert abs(X[0] - 4) < 1e-9
+    for i in range(1, 4):
+        assert abs(X[i]) < 1e-9
+    # inverse
+    x = ifft(X)
+    for i in range(4):
+        assert abs(x[i].real - 1) < 1e-9
+    # convolution: [1,2,3] * [4,5] = [4, 13, 22, 15]
+    assert convolve([1, 2, 3], [4, 5]) == [4, 13, 22, 15]
+    # Parseval's theorem
+    signal = [1, 2, 3, 4]
+    X2 = fft(signal)
+    energy_time = sum(abs(s)**2 for s in signal)
+    energy_freq = sum(abs(f)**2 for f in X2) / len(signal)
+    assert abs(energy_time - energy_freq) < 1e-9
+    print("OK: fft2")
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
+        test()
+    else:
+        print("Usage: fft2.py test")
